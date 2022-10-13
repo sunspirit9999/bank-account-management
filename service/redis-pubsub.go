@@ -1,7 +1,7 @@
 package service
 
 import (
-	"account-management/db.go"
+	"account-management/db"
 	"account-management/model"
 	re "account-management/redis"
 	"encoding/json"

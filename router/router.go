@@ -2,7 +2,7 @@ package router
 
 import (
 	"account-management/controller"
-	"account-management/db.go"
+	"account-management/db"
 	"account-management/middlewares"
 	"account-management/model"
 	re "account-management/redis"
