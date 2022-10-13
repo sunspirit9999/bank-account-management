@@ -210,6 +210,7 @@ func (a *AccountService) Deposit(c *gin.Context) {
 		return
 	}
 
+	transaction.Type = "Deposit"
 	err = a.checkValidTransaction(&transaction)
 	if err != nil {
 		c.JSON(500, gin.H{
@@ -236,7 +237,6 @@ func (a *AccountService) Deposit(c *gin.Context) {
 	}
 
 	transaction.Sender = accountId
-	transaction.Type = "Deposit"
 	transaction.TransactionId = uuid.NewString()
 
 	payload, err := json.Marshal(&transaction)
@@ -295,6 +295,7 @@ func (a *AccountService) Withdraw(c *gin.Context) {
 		return
 	}
 
+	transaction.Type = "Withdraw"
 	err = a.checkValidTransaction(&transaction)
 	if err != nil {
 		c.JSON(500, gin.H{
@@ -321,7 +322,6 @@ func (a *AccountService) Withdraw(c *gin.Context) {
 	}
 
 	transaction.Sender = accountId
-	transaction.Type = "Withdraw"
 	transaction.TransactionId = uuid.NewString()
 
 	payload, err := json.Marshal(&transaction)
@@ -380,6 +380,7 @@ func (a *AccountService) Transfer(c *gin.Context) {
 		return
 	}
 
+	transaction.Type = "Transfer"
 	err = a.checkValidTransaction(&transaction)
 	if err != nil {
 		c.JSON(500, gin.H{
@@ -406,7 +407,6 @@ func (a *AccountService) Transfer(c *gin.Context) {
 	}
 
 	transaction.Sender = accountId
-	transaction.Type = "Transfer"
 	transaction.TransactionId = uuid.NewString()
 
 	payload, err := json.Marshal(&transaction)
@@ -448,7 +448,7 @@ func (a *AccountService) checkValidTransaction(tx *model.Transaction) error {
 
 	if tx.Type == "Transfer" {
 		if tx.Receiver == "" {
-			return errors.New("receiver_id must not be blank")
+			return errors.New("receiver must not be blank")
 		}
 	}
 

@@ -67,11 +67,18 @@ func Worker(rdb *redis.Client, message *redis.Message, accountModel *model.Accou
 		return err
 	}
 
-	fmt.Printf("Worker is processing %s request of User %s \n", tx.Type, tx.Sender)
-
 	err = ProcessTransaction(accountModel, transactionModel, &tx)
 	if err != nil {
 		return err
+	}
+
+	switch tx.Type {
+	case "Transfer":
+		fmt.Printf("%s transfered %0.f to %s\n", tx.Sender, tx.Amount, tx.Receiver)
+	case "Deposit":
+		fmt.Printf("%s deposited %0.f \n", tx.Sender, tx.Amount)
+	case "Withdraw":
+		fmt.Printf("%s withdrew %0.f\n", tx.Sender, tx.Amount)
 	}
 
 	return nil
