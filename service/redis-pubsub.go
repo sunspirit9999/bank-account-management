@@ -1,6 +1,7 @@
 package service
 
 import (
+	"account-management/controller"
 	"account-management/db"
 	"account-management/model"
 	re "account-management/redis"
@@ -15,18 +16,37 @@ import (
 
 var (
 	// channel                = "mychannel3"
-	channelList            = []string{"deposit", "withdraw", "transfer"}
-	numOfWorkers           = 10
 	minimumBalance float64 = 50000
 )
 
-func StartTaskQueue(useWorker bool) {
+type TaskQueue struct {
+	UseWorker       bool
+	NumOfWorkers    int
+	MessageChannels []string
+	accountService  *controller.AccountService
+}
+
+func NewTaskQueue(useWorker bool, numOfWorkers int, messageChannels []string) *TaskQueue {
 	db := db.InitDB()
 	accountModel := model.NewAccountModel(db)
 	transactionModel := model.NewTransactionModel(db)
-	rdb := re.InitRedisClient()
+	redisClient := re.InitRedisClient()
+	accountService := controller.NewAccountService(accountModel, transactionModel, redisClient, messageChannels)
 
-	subscriber := rdb.Subscribe(channelList...)
+	return &TaskQueue{
+		UseWorker:       useWorker,
+		NumOfWorkers:    numOfWorkers,
+		MessageChannels: messageChannels,
+		accountService:  accountService,
+	}
+}
+
+func (t *TaskQueue) Start() {
+	rdb := t.accountService.RedisClient
+	accountModel := t.accountService.AccountModel
+	transactionModel := t.accountService.TransactionModel
+
+	subscriber := rdb.Subscribe(t.MessageChannels...)
 	defer subscriber.Close()
 
 	if err := subscriber.Ping(); err != nil {
@@ -35,14 +55,26 @@ func StartTaskQueue(useWorker bool) {
 
 	messageChannel := subscriber.Channel()
 
-	if useWorker {
-		for i := 1; i <= numOfWorkers; i++ {
+	if t.UseWorker {
+		fmt.Printf("Started task queue with %d workers !\n", t.NumOfWorkers)
+		for i := 1; i <= t.NumOfWorkers; i++ {
 			go ProcessWithWorkers(rdb, messageChannel, accountModel, transactionModel, i)
 		}
 	} else {
+		fmt.Printf("Started task queue without worker !\n")
+
 		for message := range messageChannel {
 			ProcessWithoutWorker(rdb, message, accountModel, transactionModel)
 		}
+
+		// for {
+		// 	message, err := subscriber.ReceiveMessage()
+		// 	ProcessWithoutWorker(rdb, message, accountModel, transactionModel)
+		// 	if err != nil {
+		// 		log.Fatal(err)
+		// 	}
+		// }
+
 	}
 
 	time.Sleep(time.Hour * 10000)

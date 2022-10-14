@@ -13,24 +13,19 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	minimumBalance  = 50000
-	depositChannel  = "deposit"
-	withdrawChannel = "withdraw"
-	transferChannel = "transfer"
-)
-
 type AccountService struct {
 	AccountModel     *model.AccountModel
 	TransactionModel *model.TransactionModel
 	RedisClient      *redis.Client
+	MessageChannels  []string
 }
 
-func NewAccountService(accountModel *model.AccountModel, transactionModel *model.TransactionModel, rdb *redis.Client) *AccountService {
+func NewAccountService(accountModel *model.AccountModel, transactionModel *model.TransactionModel, rdb *redis.Client, messageChannels []string) *AccountService {
 	return &AccountService{
 		AccountModel:     accountModel,
 		TransactionModel: transactionModel,
 		RedisClient:      rdb,
+		MessageChannels:  messageChannels,
 	}
 }
 
@@ -247,7 +242,7 @@ func (a *AccountService) Deposit(c *gin.Context) {
 		return
 	}
 
-	err = a.RedisClient.Publish(depositChannel, payload).Err()
+	err = a.RedisClient.Publish(a.MessageChannels[0], payload).Err()
 	if err != nil {
 		c.JSON(500, gin.H{
 			"messages": errors.New("failed to send request to task queue").Error(),
@@ -332,7 +327,7 @@ func (a *AccountService) Withdraw(c *gin.Context) {
 		return
 	}
 
-	err = a.RedisClient.Publish(withdrawChannel, payload).Err()
+	err = a.RedisClient.Publish(a.MessageChannels[0], payload).Err()
 	if err != nil {
 		c.JSON(500, gin.H{
 			"messages": errors.New("failed to send request to task queue").Error(),
@@ -435,7 +430,7 @@ func (a *AccountService) Transfer(c *gin.Context) {
 		return
 	}
 
-	err = a.RedisClient.Publish(transferChannel, payload).Err()
+	err = a.RedisClient.Publish(a.MessageChannels[0], payload).Err()
 	if err != nil {
 		c.JSON(500, gin.H{
 			"messages": errors.New("failed to send request to task queue").Error(),
@@ -532,5 +527,5 @@ func (a *AccountService) CheckAccountBalance(c *gin.Context) {
 		"balance":    balance,
 		"status":     200,
 	})
-	return
+
 }
