@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	initBalance float64 = 50000
+	initBalance    float64 = 50000
+	minimumBalance float64 = 50000
 )
 
 type Account struct {
@@ -87,9 +88,18 @@ func (a *AccountModel) GetAccountIdByToken(token string) (string, error) {
 	return accountId, nil
 }
 
+func (a *AccountModel) GetAccountIdByUserName(username string) (string, error) {
+	var accountId string
+	err := a.DB.Raw("select account_id from accounts where username = ?", username).Scan(&accountId).Error
+	if err != nil {
+		return "", err
+	}
+	return accountId, nil
+}
+
 func (a *AccountModel) GetList() ([]Account, error) {
 	var accounts []Account
-	err := a.DB.Table("accounts").Omit("password").Find(&accounts).Error
+	err := a.DB.Table("accounts").Omit("password", "token").Find(&accounts).Error
 	if err != nil {
 		return nil, err
 	}
@@ -118,11 +128,30 @@ func (a *AccountModel) GetAccountBalance(accountId string) (float64, error) {
 	return balance, nil
 }
 
-func (a *AccountModel) SaveNewBalance(newBalance float64, accountId string) error {
-	fmt.Println(accountId)
-	err := a.DB.Exec("update accounts set balance = ? where account_id = ?", newBalance, accountId).Error
+func (a *AccountModel) SaveNewBalanceWithPositiveAmount(amount float64, accountId string) error {
+
+	err := a.DB.Exec("update accounts set balance = accounts.balance + ? where account_id = ?", amount, accountId).Error
 	if err != nil {
 		return fmt.Errorf("failed to save new balance : %v", err)
+	}
+
+	return nil
+}
+
+func (a *AccountModel) SaveNewBalanceWithNegativeAmount(amount float64, accountId string) error {
+
+	err := a.DB.Exec("update accounts set balance = accounts.balance - ? where account_id = ? and balance > ?", amount, accountId, minimumBalance).Error
+	if err != nil {
+		return fmt.Errorf("failed to save new balance : %v", err)
+	}
+
+	return nil
+}
+
+func (a *AccountModel) SaveNewBalance(newAccountBalance float64, accountId string) error {
+	err := a.DB.Exec("update accounts set balance = ? where account_id = ?", newAccountBalance, accountId).Error
+	if err != nil {
+		return fmt.Errorf("failed to set state's account : %v", err)
 	}
 	return nil
 }

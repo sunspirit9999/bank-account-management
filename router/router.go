@@ -33,8 +33,8 @@ func Start() {
 	protected.POST("/deposit", accountService.Deposit)
 	protected.POST("/withdraw", accountService.Withdraw)
 	protected.POST("/transfer", accountService.Transfer)
-	// protected.POST("/withdraw", accountService.Withdraw)
-	// protected.POST("/transfer", accountService.Transfer)
+	protected.GET("/transaction/status", accountService.CheckTransactionStatus)
+	protected.GET("/account/balance", accountService.CheckAccountBalance)
 
 	err := r.Run(":8080") // Ứng dụng chạy tại cổng 8080
 	if err != nil {

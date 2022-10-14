@@ -25,12 +25,13 @@ var queueCmd = &cobra.Command{
 	Use:   "queue",
 	Short: "Task queue",
 	Run: func(cmd *cobra.Command, args []string) {
-		service.StartTaskQueue()
+		useWorker, _ := cmd.Flags().GetBool("useWorker")
+		service.StartTaskQueue(useWorker)
 	},
 }
 
 func init() {
-
+	queueCmd.Flags().Bool("useWorker", false, "use workers for concurrent processing")
 	RootCmd.AddCommand(apiCmd)
 	RootCmd.AddCommand(queueCmd)
 }

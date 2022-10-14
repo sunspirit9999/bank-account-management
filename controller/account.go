@@ -5,7 +5,6 @@ import (
 	"account-management/utils.go"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 
@@ -397,16 +396,34 @@ func (a *AccountService) Transfer(c *gin.Context) {
 		token = strings.Split(bearerToken, " ")[1]
 	}
 
-	accountId, err := a.AccountModel.GetAccountIdByToken(token)
-	if accountId == "" || err != nil {
+	sender, err := a.AccountModel.GetAccountIdByToken(token)
+	if sender == "" || err != nil {
 		c.JSON(500, gin.H{
-			"messages": errors.New("failed to get accountId with given token").Error(),
+			"messages": errors.New("failed to get your accountId with given token").Error(),
 			"status":   500,
 		})
 		return
 	}
 
-	transaction.Sender = accountId
+	receiver, err := a.AccountModel.GetAccountIdByUserName(transaction.Receiver)
+	if receiver == "" || err != nil {
+		c.JSON(500, gin.H{
+			"messages": errors.New("receiver doesn't exist, make sure you pass a right username").Error(),
+			"status":   500,
+		})
+		return
+	}
+
+	if sender == receiver {
+		c.JSON(500, gin.H{
+			"messages": errors.New("receiver can't be sender").Error(),
+			"status":   500,
+		})
+		return
+	}
+
+	transaction.Sender = sender
+	transaction.Receiver = receiver
 	transaction.TransactionId = uuid.NewString()
 
 	payload, err := json.Marshal(&transaction)
@@ -426,15 +443,6 @@ func (a *AccountService) Transfer(c *gin.Context) {
 		})
 		return
 	}
-
-	// err = a.ProcessTransaction(&transaction)
-	// if err != nil {
-	// 	c.JSON(500, gin.H{
-	// 		"messages": err.Error(),
-	// 		"status":   500,
-	// 	})
-	// 	return
-	// }
 
 	c.JSON(200, gin.H{
 		"messages":       "your transfer request is processing !",
@@ -459,51 +467,70 @@ func (a *AccountService) checkValidTransaction(tx *model.Transaction) error {
 	return nil
 }
 
-func (a *AccountService) ProcessTransaction(tx *model.Transaction) error {
+func (a *AccountService) CheckTransactionStatus(c *gin.Context) {
+	txid := c.Query("transaction_id")
+	if txid == "" {
+		c.JSON(500, gin.H{
+			"messages": errors.New("you must pass a transaction_id in parameter").Error(),
+			"status":   500,
+		})
+		return
+	}
 
-	senderAmount, err := a.AccountModel.GetAccountBalance(tx.Sender)
+	if !utils.IsValidUUID(txid) {
+		c.JSON(500, gin.H{
+			"messages": errors.New("you must pass valid transaction_id").Error(),
+			"status":   500,
+		})
+		return
+	}
+
+	exist := a.TransactionModel.GetTransactionState(txid)
+	if !exist {
+		c.JSON(500, gin.H{
+			"messages": errors.New("transaction doesn't exist or still be processing").Error(),
+			"status":   500,
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"state":  "Finished",
+		"status": 200,
+	})
+
+}
+
+func (a *AccountService) CheckAccountBalance(c *gin.Context) {
+	bearerToken := c.Request.Header.Get("Authorization")
+
+	var token string
+	if len(strings.Split(bearerToken, " ")) == 2 {
+		token = strings.Split(bearerToken, " ")[1]
+	}
+
+	accountId, err := a.AccountModel.GetAccountIdByToken(token)
+	if accountId == "" || err != nil {
+		c.JSON(500, gin.H{
+			"messages": errors.New("failed to get accountId with given token").Error(),
+			"status":   500,
+		})
+		return
+	}
+
+	balance, err := a.AccountModel.GetAccountBalance(accountId)
 	if err != nil {
-		return err
+		c.JSON(500, gin.H{
+			"messages": errors.New("failed to get balance of your given account").Error(),
+			"status":   500,
+		})
+		return
 	}
 
-	var newSenderBalance float64
-	var newReceiverBalance float64
-
-	if tx.Type == "Deposit" {
-		newSenderBalance = senderAmount + tx.Amount
-	} else {
-		if senderAmount-tx.Amount < minimumBalance {
-			return fmt.Errorf("your balance is not enough to %s", strings.ToLower(tx.Type))
-		}
-
-		newSenderBalance = senderAmount - tx.Amount
-	}
-
-	if tx.Type == "Transfer" {
-		receiverAmount, err := a.AccountModel.GetAccountBalance(tx.Receiver)
-		if err != nil {
-			return err
-		}
-
-		newReceiverBalance = receiverAmount + tx.Amount
-	}
-
-	err = a.AccountModel.SaveNewBalance(newSenderBalance, tx.Sender)
-	if err != nil {
-		return err
-	}
-
-	if tx.Type == "Transfer" {
-		err = a.AccountModel.SaveNewBalance(newReceiverBalance, tx.Receiver)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = a.TransactionModel.Save(tx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	c.JSON(200, gin.H{
+		"account_id": accountId,
+		"balance":    balance,
+		"status":     200,
+	})
+	return
 }

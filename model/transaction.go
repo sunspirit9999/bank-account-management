@@ -36,3 +36,16 @@ func (t *TransactionModel) Save(tx *Transaction) error {
 	}
 	return nil
 }
+
+func (t *TransactionModel) GetTransactionState(transactionId string) bool {
+	var transactionExist string
+	err := t.DB.Raw("select transaction_id from transactions where transaction_id = ?", transactionId).Scan(&transactionExist).Error
+	if err != nil {
+		return false
+	}
+
+	if transactionExist != "" {
+		return true
+	}
+	return false
+}
