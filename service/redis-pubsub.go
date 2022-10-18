@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"gorm.io/gorm"
 )
 
 var (
@@ -145,36 +146,37 @@ func ProcessWithoutWorker(rdb *redis.Client, message *redis.Message, accountMode
 
 func ProcessTransactionWithWorkers(accountModel *model.AccountModel, transactionModel *model.TransactionModel, tx *model.Transaction) error {
 
-	// var senderBalance float64
-	var err error
+	err := accountModel.DB.Transaction(func(dbTx *gorm.DB) error {
 
-	if tx.Type != "Deposit" {
+		if tx.Type != "Deposit" {
+			err := accountModel.SaveNewBalanceWithNegativeAmount(tx.Amount, tx.Sender, dbTx)
+			if err != nil {
+				return err
+			}
 
-		err = accountModel.SaveNewBalanceWithNegativeAmount(tx.Amount, tx.Sender)
-		if err != nil {
-			return err
-		}
+			if tx.Type == "Transfer" {
+				err = accountModel.SaveNewBalanceWithPositiveAmount(tx.Amount, tx.Receiver, dbTx)
+				if err != nil {
+					return err
+				}
+			}
 
-		if tx.Type == "Transfer" {
-			err = accountModel.SaveNewBalanceWithPositiveAmount(tx.Amount, tx.Receiver)
+		} else {
+			err := accountModel.SaveNewBalanceWithPositiveAmount(tx.Amount, tx.Sender, dbTx)
 			if err != nil {
 				return err
 			}
 		}
 
-	} else {
-		err = accountModel.SaveNewBalanceWithPositiveAmount(tx.Amount, tx.Sender)
+		err := transactionModel.Save(tx)
 		if err != nil {
 			return err
 		}
-	}
 
-	err = transactionModel.Save(tx)
-	if err != nil {
-		return err
-	}
+		return nil
+	})
 
-	return nil
+	return err
 }
 
 func ProcessTransactionWithoutWorker(accountModel *model.AccountModel, transactionModel *model.TransactionModel, tx *model.Transaction) error {

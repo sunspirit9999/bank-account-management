@@ -128,9 +128,14 @@ func (a *AccountModel) GetAccountBalance(accountId string) (float64, error) {
 	return balance, nil
 }
 
-func (a *AccountModel) SaveNewBalanceWithPositiveAmount(amount float64, accountId string) error {
+func (a *AccountModel) SaveNewBalanceWithPositiveAmount(amount float64, accountId string, txs ...*gorm.DB) error {
+	var tx = a.DB
 
-	err := a.DB.Exec("update accounts set balance = accounts.balance + ? where account_id = ?", amount, accountId).Error
+	if len(txs) > 0 {
+		tx = txs[0]
+	}
+
+	err := tx.Exec("update accounts set balance = accounts.balance + ? where account_id = ?", amount, accountId).Error
 	if err != nil {
 		return fmt.Errorf("failed to save new balance : %v", err)
 	}
@@ -138,11 +143,21 @@ func (a *AccountModel) SaveNewBalanceWithPositiveAmount(amount float64, accountI
 	return nil
 }
 
-func (a *AccountModel) SaveNewBalanceWithNegativeAmount(amount float64, accountId string) error {
+func (a *AccountModel) SaveNewBalanceWithNegativeAmount(amount float64, accountId string, txs ...*gorm.DB) error {
+	var tx = a.DB
 
-	err := a.DB.Exec("update accounts set balance = accounts.balance - ? where account_id = ? and balance > ?", amount, accountId, minimumBalance).Error
-	if err != nil {
+	if len(txs) > 0 {
+		tx = txs[0]
+	}
+
+	result := tx.Exec("update accounts set balance = accounts.balance - ? where account_id = ? and balance > ?", amount, accountId, minimumBalance)
+	if err := result.Error; err != nil {
 		return fmt.Errorf("failed to save new balance : %v", err)
+	}
+
+	rowsAffected := result.RowsAffected
+	if rowsAffected == 0 {
+		return fmt.Errorf("failed to save new balance : Balance must be greater than %0.f", minimumBalance)
 	}
 
 	return nil
